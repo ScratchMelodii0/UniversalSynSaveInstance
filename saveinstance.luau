@@ -2383,6 +2383,8 @@ local GLOBAL_ENV = getgenv and getgenv() or _G or shared
 --- @field IgnoreNotArchivable boolean -- Ignores the Archivable property and saves Non-Archivable instances. ___Default:___ true
 --- @field IgnorePropertiesOfNotScriptsOnScriptsMode boolean -- Ignores property of every instance that is not a script in "scripts" mode. ___Default:___ false
 --- @field IgnoreSpecialProperties boolean -- Prevents calls to `gethiddenproperty` and uses fallback methods instead. This also helps with crashes. If your file is corrupted after saving, you can try turning this on. ___Default:___ false
+--- @field SpecialProperties table -- Optional allow-list of special/hidden property names to save. If unset, all readable special properties are saved. ___Default:___ false
+--- @field ForceDisableParticleEmitters boolean -- Saves ParticleEmitter.Enabled as false in scripts mode when non-script properties are ignored, preventing stacked emitters from lagging Studio after load. ___Default:___ true
 --- @field IsolateStarterPlayer boolean -- Saves StarterPlayer as separate folder, children of the original instance will be ignored. ___Default:___ false
 --- @field IsolatePlayers boolean -- Saves All Players as separate folder, children of the original instance will be ignored. ___Default:___ false
 --- @field IsolateLocalPlayer boolean -- Saves LocalPlayer as separate folder, original instance will be ignored. ___Default:___ false
@@ -2514,6 +2516,8 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		IgnoreNotArchivable = true,
 		IgnorePropertiesOfNotScriptsOnScriptsMode = false,
 		IgnoreSpecialProperties = ArrayToDict({ "Fluxus", "Delta", "Solara" })[EXECUTOR_NAME] or false, -- ! Please submit more Executors that crash on gethiddenproperty (with this disabled basically)
+		SpecialProperties = false,
+		ForceDisableParticleEmitters = true,
 
 		IsolateLocalPlayer = false, --  #service.StarterGui:GetChildren() == 0
 		IsolateLocalPlayerCharacter = false,
@@ -2827,9 +2831,11 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 	local IgnoreDefaultProperties = OPTIONS.IgnoreDefaultProperties
 	local IgnoreNotArchivable = not OPTIONS.IgnoreNotArchivable
 	local IgnorePropertiesOfNotScriptsOnScriptsMode = OPTIONS.IgnorePropertiesOfNotScriptsOnScriptsMode
+	local SpecialProperties = OPTIONS.SpecialProperties and ArrayToDict(OPTIONS.SpecialProperties)
+	local ForceDisableParticleEmitters = OPTIONS.ForceDisableParticleEmitters
 
 	local old_gethiddenproperty
-	if OPTIONS and gethiddenproperty then
+	if OPTIONS.IgnoreSpecialProperties and gethiddenproperty then
 		old_gethiddenproperty = gethiddenproperty
 		gethiddenproperty = nil
 	end
@@ -2942,10 +2948,15 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		if mode ~= "scripts" then
 			IgnorePropertiesOfNotScriptsOnScriptsMode = nil
 		end
+		ForceDisableParticleEmitters = ForceDisableParticleEmitters and IgnorePropertiesOfNotScriptsOnScriptsMode
 
 		local TempRoot = ToSaveInstance or game
 
 		if mode == "full" then
+			if CustomOptions_valid.IgnoreDefaultProperties == nil then
+				IgnoreDefaultProperties = false
+			end
+
 			if not ToSaveInstance then
 				local Children = TempRoot:GetChildren()
 				if 0 < #Children then
@@ -3361,6 +3372,10 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			end
 		end
 
+		if ForceDisableParticleEmitters and propertyName == "Enabled" and instance:IsA("ParticleEmitter") then
+			return false
+		end
+
 		return raw
 	end
 
@@ -3594,6 +3609,10 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 								and isLuaSourceContainer(instance)
 							)
 						then
+							if SpecialProperties and Special and not SpecialProperties[PropertyName] then
+								continue
+							end
+
 							raw = ReadProperty(instance, Property, PropertyName, Special, Category, Optional)
 
 							if raw == __BREAK then -- ! Assuming __BREAK is always returned when there's a failure to read a property
