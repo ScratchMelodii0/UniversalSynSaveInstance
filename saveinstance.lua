@@ -2140,6 +2140,7 @@ local GLOBAL_ENV = getgenv and getgenv() or _G or shared
 --- @field timeout number -- If the decompilation run time exceeds this value it gets cancelled. Set to -1 to disable timeout (unreliable). ***Aliases***: `DecompileTimeout`. ___Default:___ 10
 --- @field DecompileJobless boolean -- Includes already decompiled code in the output. No new scripts are decompiled. ___Default:___ false
 --- @field SaveBytecode boolean -- Includes bytecode in the output. Useful if you wish to be able to decompile it yourself later. ___Default:___ false
+--- @field SaveServerScripts boolean -- Attempts to decompile/save server-side Script sources when the executor exposes them. FilteringEnabled usually prevents this, so unsupported scripts still receive a warning placeholder. ___Default:___ false
 --- .DecompileIgnore {Instance | Instance.ClassName | [Instance.ClassName] = {Instance.Name}} -- * Ignores match & it's descendants by default. To Ignore only the instance itself set the value to `= false`. Examples: "Chat", - Matches any instance with "Chat" ClassName, Players = {"MyPlayerName"} - Matches "Players" Class AND "MyPlayerName" Name ONLY, `workspace` - matches Instance by reference, `[workspace] = false` - matches Instance by reference and only ignores the instance itself and not it's descendants. ___Default:___ {TextChatService}
 --- .IgnoreList {Instance | Instance.ClassName | [Instance.ClassName] = {Instance.Name}} -- Structure is similar to **@DecompileIgnore** except `= false` meaning if you ignore one instance it will automatically ignore it's descendants. ___Default:___ {CoreGui, CorePackages}
 --- .ExtraInstances {Instance} -- If used with any invalid mode (like "invalidmode") it will only save these instances. ___Default:___ {}
@@ -2245,6 +2246,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		},
 		IgnoreDefaultPlayerScripts = true,
 		SaveBytecode = false,
+		SaveServerScripts = false,
 
 		IgnoreProperties = {},
 
@@ -2563,6 +2565,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 	local ScriptCache = OPTIONS.scriptcache and getscriptbytecode
 
 	local Timeout = OPTIONS.timeout
+	local SaveServerScripts = OPTIONS.SaveServerScripts
 
 	local IgnoreSharedStrings = OPTIONS.IgnoreSharedStrings
 	local SharedStringOverwrite = OPTIONS.SharedStringOverwrite
@@ -3466,14 +3469,15 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 												if should_decompile then
 													local isLocalScript = instance:IsA("LocalScript")
 													if
-														isLocalScript
+														not SaveServerScripts
+														and (isLocalScript
 															and instance.RunContext == Enum.RunContext.Server
-														or not isLocalScript
-															and instance:IsA("Script")
-															and instance.RunContext ~= Enum.RunContext.Client
+															or not isLocalScript
+																and instance:IsA("Script")
+																and instance.RunContext ~= Enum.RunContext.Client)
 													then
 														value =
-															"-- [FilteringEnabled] Server Scripts are IMPOSSIBLE to save" -- TODO: Could be not just server scripts in the future
+															"-- [FilteringEnabled] Server Scripts are disabled by default. Set SaveServerScripts = true to try saving them if your executor exposes them."
 													else
 														value = ldecompile(instance)
 														if SaveBytecode then
@@ -3695,7 +3699,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		If you didn't save in Binary (rbxl) - it's recommended to save the game right away to take advantage of the binary format & to preserve values of certain properties if you used IgnoreDefaultProperties setting (as they might change in the future).
 		You can do that by going to FILE -> Save to File As -> Make sure File Name ends with .rbxl -> Save
 
-		ServerStorage, ServerScriptService and Server Scripts are IMPOSSIBLE to save because of FilteringEnabled.
+		ServerStorage, ServerScriptService and most Server Scripts cannot be read from the client because of FilteringEnabled. If your executor exposes server-side bytecode/source, set `SaveServerScripts = true` to try saving them; otherwise USSI writes a warning placeholder.
 
 		If your player cannot spawn into the game, please move the scripts in StarterPlayer somewhere else or delete them. Then run `game:GetService("Players").CharacterAutoLoads = true`.
 		And use "Play Here" to start game instead of "Play" to spawn your Character where your Camera currently is.
