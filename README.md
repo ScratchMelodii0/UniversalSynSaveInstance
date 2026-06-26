@@ -96,6 +96,7 @@ The maintainers do not support or condone misuse of this software and are not re
   * [x] Object (for .rbxmx files)
   * [x] RemovePlayerCharacters
   * [x] SavePlayers
+  * [x] SaveServerScripts (best-effort; depends on executor access)
   * [x] ShowStatus
     - [x] ~~Add Drawing Library support for ShowStatus~~ Can't reliably test if it's working on a tool
   * [x] IsolatePlayerGui (same as IsolateLocalPlayer)
