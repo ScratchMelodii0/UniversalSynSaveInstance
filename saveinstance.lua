@@ -2140,6 +2140,7 @@ local GLOBAL_ENV = getgenv and getgenv() or _G or shared
 --- @field timeout number -- If the decompilation run time exceeds this value it gets cancelled. Set to -1 to disable timeout (unreliable). ***Aliases***: `DecompileTimeout`. ___Default:___ 10
 --- @field DecompileJobless boolean -- Includes already decompiled code in the output. No new scripts are decompiled. ___Default:___ false
 --- @field SaveBytecode boolean -- Includes bytecode in the output. Useful if you wish to be able to decompile it yourself later. ___Default:___ false
+--- @field SaveServerScripts boolean -- Attempts to decompile/save server-side Script sources when the executor exposes them. FilteringEnabled usually prevents this, so unsupported scripts still receive a warning placeholder. ___Default:___ false
 --- .DecompileIgnore {Instance | Instance.ClassName | [Instance.ClassName] = {Instance.Name}} -- * Ignores match & it's descendants by default. To Ignore only the instance itself set the value to `= false`. Examples: "Chat", - Matches any instance with "Chat" ClassName, Players = {"MyPlayerName"} - Matches "Players" Class AND "MyPlayerName" Name ONLY, `workspace` - matches Instance by reference, `[workspace] = false` - matches Instance by reference and only ignores the instance itself and not it's descendants. ___Default:___ {TextChatService}
 --- .IgnoreList {Instance | Instance.ClassName | [Instance.ClassName] = {Instance.Name}} -- Structure is similar to **@DecompileIgnore** except `= false` meaning if you ignore one instance it will automatically ignore it's descendants. ___Default:___ {CoreGui, CorePackages}
 --- .ExtraInstances {Instance} -- If used with any invalid mode (like "invalidmode") it will only save these instances. ___Default:___ {}
@@ -2155,6 +2156,8 @@ local GLOBAL_ENV = getgenv and getgenv() or _G or shared
 --- @field IgnoreNotArchivable boolean -- Ignores the Archivable property and saves Non-Archivable instances. ___Default:___ true
 --- @field IgnorePropertiesOfNotScriptsOnScriptsMode boolean -- Ignores property of every instance that is not a script in "scripts" mode. ___Default:___ false
 --- @field IgnoreSpecialProperties boolean -- Prevents calls to `gethiddenproperty` and uses fallback methods instead. This also helps with crashes. If your file is corrupted after saving, you can try turning this on. ___Default:___ false
+--- @field SpecialProperties table -- Optional allow-list of special/hidden property names to save. If unset, all readable special properties are saved. ___Default:___ false
+--- @field ForceDisableParticleEmitters boolean -- Saves ParticleEmitter.Enabled as false in scripts mode when non-script properties are ignored, preventing stacked emitters from lagging Studio after load. ___Default:___ true
 --- @field IsolateLocalPlayer boolean -- Saves Children of LocalPlayer as separate folder and prevents any instance of ClassName Player with .Name identical to LocalPlayer.Name from saving. ___Default:___ false
 --- @field IsolateStarterPlayer boolean -- If enabled, StarterPlayer will be cleared and the saved starter player will be placed into folders. ___Default:___ false
 --- @field IsolateLocalPlayerCharacter boolean -- Saves Children of LocalPlayer.Character as separate folder and prevents any instance of ClassName Player with .Name identical to LocalPlayer.Name from saving. ___Default:___ false
@@ -2245,6 +2248,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		},
 		IgnoreDefaultPlayerScripts = true,
 		SaveBytecode = false,
+		SaveServerScripts = false,
 
 		IgnoreProperties = {},
 
@@ -2271,6 +2275,8 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		IgnoreNotArchivable = true,
 		IgnorePropertiesOfNotScriptsOnScriptsMode = false,
 		IgnoreSpecialProperties = ArrayToDict({ "Fluxus", "Delta", "Solara" })[EXECUTOR_NAME] or false, -- ! Please submit more Executors that crash on gethiddenproperty (with this disabled basically)
+		SpecialProperties = false,
+		ForceDisableParticleEmitters = true,
 
 		IsolateLocalPlayer = false, --  #service.StarterGui:GetChildren() == 0
 		IsolateLocalPlayerCharacter = false,
@@ -2546,9 +2552,11 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 	local IgnoreDefaultProperties = OPTIONS.IgnoreDefaultProperties
 	local IgnoreNotArchivable = not OPTIONS.IgnoreNotArchivable
 	local IgnorePropertiesOfNotScriptsOnScriptsMode = OPTIONS.IgnorePropertiesOfNotScriptsOnScriptsMode
+	local SpecialProperties = OPTIONS.SpecialProperties and ArrayToDict(OPTIONS.SpecialProperties)
+	local ForceDisableParticleEmitters = OPTIONS.ForceDisableParticleEmitters
 
 	local old_gethiddenproperty
-	if OPTIONS and gethiddenproperty then
+	if OPTIONS.IgnoreSpecialProperties and gethiddenproperty then
 		old_gethiddenproperty = gethiddenproperty
 		gethiddenproperty = nil
 	end
@@ -2563,6 +2571,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 	local ScriptCache = OPTIONS.scriptcache and getscriptbytecode
 
 	local Timeout = OPTIONS.timeout
+	local SaveServerScripts = OPTIONS.SaveServerScripts
 
 	local IgnoreSharedStrings = OPTIONS.IgnoreSharedStrings
 	local SharedStringOverwrite = OPTIONS.SharedStringOverwrite
@@ -2661,10 +2670,15 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		if mode ~= "scripts" then
 			IgnorePropertiesOfNotScriptsOnScriptsMode = nil
 		end
+		ForceDisableParticleEmitters = ForceDisableParticleEmitters and IgnorePropertiesOfNotScriptsOnScriptsMode
 
 		local TempRoot = ToSaveInstance or game
 
 		if mode == "full" then
+			if CustomOptions_valid.IgnoreDefaultProperties == nil then
+				IgnoreDefaultProperties = false
+			end
+
 			if not ToSaveInstance then
 				local Children = TempRoot:GetChildren()
 				if 0 < #Children then
@@ -3051,6 +3065,10 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			end
 		end
 
+		if ForceDisableParticleEmitters and propertyName == "Enabled" and instance:IsA("ParticleEmitter") then
+			return false
+		end
+
 		return raw
 	end
 
@@ -3297,6 +3315,11 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 								local Special, Category, Optional =
 									Property.Special, Property.Category, Property.Optional
 
+								if SpecialProperties and Special and not SpecialProperties[PropertyName] then
+									__DARKLUA_CONTINUE_65 = true
+									break
+								end
+
 								local raw = ReadProperty(instance, Property, PropertyName, Special, Category, Optional)
 
 								if raw == __BREAK then -- ! Assuming __BREAK is always returned when there's a failure to read a property
@@ -3466,14 +3489,15 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 												if should_decompile then
 													local isLocalScript = instance:IsA("LocalScript")
 													if
-														isLocalScript
+														not SaveServerScripts
+														and (isLocalScript
 															and instance.RunContext == Enum.RunContext.Server
-														or not isLocalScript
-															and instance:IsA("Script")
-															and instance.RunContext ~= Enum.RunContext.Client
+															or not isLocalScript
+																and instance:IsA("Script")
+																and instance.RunContext ~= Enum.RunContext.Client)
 													then
 														value =
-															"-- [FilteringEnabled] Server Scripts are IMPOSSIBLE to save" -- TODO: Could be not just server scripts in the future
+															"-- [FilteringEnabled] Server Scripts are disabled by default. Set SaveServerScripts = true to try saving them if your executor exposes them."
 													else
 														value = ldecompile(instance)
 														if SaveBytecode then
@@ -3695,7 +3719,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		If you didn't save in Binary (rbxl) - it's recommended to save the game right away to take advantage of the binary format & to preserve values of certain properties if you used IgnoreDefaultProperties setting (as they might change in the future).
 		You can do that by going to FILE -> Save to File As -> Make sure File Name ends with .rbxl -> Save
 
-		ServerStorage, ServerScriptService and Server Scripts are IMPOSSIBLE to save because of FilteringEnabled.
+		ServerStorage, ServerScriptService and most Server Scripts cannot be read from the client because of FilteringEnabled. If your executor exposes server-side bytecode/source, set `SaveServerScripts = true` to try saving them; otherwise USSI writes a warning placeholder.
 
 		If your player cannot spawn into the game, please move the scripts in StarterPlayer somewhere else or delete them. Then run `game:GetService("Players").CharacterAutoLoads = true`.
 		And use "Play Here" to start game instead of "Play" to spawn your Character where your Camera currently is.

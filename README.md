@@ -7,11 +7,60 @@
 
 ```lua
 local Params = {
- RepoURL = "https://raw.githubusercontent.com/luau/UniversalSynSaveInstance/main/",
- SSI = "saveinstance",
+	RepoURL = "https://raw.githubusercontent.com/luau/UniversalSynSaveInstance/main/",
+	SSI = "saveinstance",
 }
+
 local synsaveinstance = loadstring(game:HttpGet(Params.RepoURL .. Params.SSI .. ".luau", true), Params.SSI)()
-local Options = {} -- Documentation here https://luau.github.io/UniversalSynSaveInstance/api/SynSaveInstance
+
+-- Full save preset: tries to preserve as much as USSI can access from the client.
+-- Documentation: https://luau.github.io/UniversalSynSaveInstance/api/SynSaveInstance
+local Options = {
+	mode = "full",
+
+	-- Scripts
+	Decompile = true,
+	SaveBytecode = true,
+	SaveServerScripts = true, -- Best-effort; FilteringEnabled can still prevent access.
+	DecompileTimeout = 30,
+	DecompileIgnore = {},
+	IgnoreDefaultPlayerScripts = false,
+
+	-- Instance coverage
+	NilInstances = true,
+	IgnoreNotArchivable = true,
+	SaveNotCreatable = true,
+	SavePlayerCharacters = true,
+	IsolatePlayers = false,
+	IsolateLocalPlayer = false,
+	IsolateLocalPlayerCharacter = false,
+	IsolateStarterPlayer = false,
+	ExtraInstances = {},
+	IgnoreList = {},
+
+	-- Property coverage
+	IgnoreDefaultProperties = false,
+	IgnoreProperties = {},
+	IgnoreSpecialProperties = false,
+	SpecialProperties = false, -- false means save every readable special/hidden property.
+	IgnoreSharedStrings = false,
+	SharedStringOverwrite = false,
+	TreatUnionsAsParts = false,
+
+	-- Output/compatibility
+	FilePath = false,
+	AvoidFileOverwrite = true,
+	IsModel = false,
+	SafeMode = true,
+	KillAllScripts = true,
+	BoostFPS = true,
+	AntiIdle = true,
+	ShowStatus = true,
+	ReadMe = true,
+	Callback = false,
+	AlternativeWritefile = true,
+}
+
 synsaveinstance(Options)
 ```
 
@@ -96,6 +145,7 @@ The maintainers do not support or condone misuse of this software and are not re
   * [x] Object (for .rbxmx files)
   * [x] RemovePlayerCharacters
   * [x] SavePlayers
+  * [x] SaveServerScripts (best-effort; depends on executor access)
   * [x] ShowStatus
     - [x] ~~Add Drawing Library support for ShowStatus~~ Can't reliably test if it's working on a tool
   * [x] IsolatePlayerGui (same as IsolateLocalPlayer)
@@ -105,11 +155,11 @@ The maintainers do not support or condone misuse of this software and are not re
 - [x] ~~Remove buffersize, savebuffer & so on for sake of performance by concatenating <Item> strings to total string then writing it to file (no extra steps like table.concat)~~ table.concat proved faster in the case of huge amount of concatenations
   - Test table.concat vs string ..= with a full buffer (this benchmark differs per usecase)
 - [ ] Add Option to restart saveinstance from the point that it crashed on (perhaps by skipping)
-- [ ] Maybe modes should do more than just determining the list of instances to save, like changing IgnoreDefaultProperties to false if mode is "full" for example
+- [x] Maybe modes should do more than just determining the list of instances to save, like changing IgnoreDefaultProperties to false if mode is "full" for example
 - [x] Add Lua & Luau versions instead of merged (WARNING: LUAU MIGHT BE MORE UPDATED THAN LUA VERSION, lua version exists just for the sake of old & bad tools, ask devs of your tools to support luau as its latest & greatest)
 - [x] ~~Add Support for multiple Instances to be saved as a model~~ IsModel = true & ExtraInstances
-- [ ] Force disable ParticleEmitters in case something like IgnorePropertiesOfNotScriptsOnScriptsMode is enabled (they stack in one place and create huge lag)
-- [ ] Be able to specify which special properties you want saved (to avoid saving all)
+- [x] Force disable ParticleEmitters in case something like IgnorePropertiesOfNotScriptsOnScriptsMode is enabled (they stack in one place and create huge lag)
+- [x] Be able to specify which special properties you want saved (to avoid saving all)
 
 # Acknowledgments
 > [!IMPORTANT]
