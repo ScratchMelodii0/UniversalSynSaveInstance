@@ -7,11 +7,60 @@
 
 ```lua
 local Params = {
- RepoURL = "https://raw.githubusercontent.com/luau/UniversalSynSaveInstance/main/",
- SSI = "saveinstance",
+	RepoURL = "https://raw.githubusercontent.com/luau/UniversalSynSaveInstance/main/",
+	SSI = "saveinstance",
 }
+
 local synsaveinstance = loadstring(game:HttpGet(Params.RepoURL .. Params.SSI .. ".luau", true), Params.SSI)()
-local Options = {} -- Documentation here https://luau.github.io/UniversalSynSaveInstance/api/SynSaveInstance
+
+-- Full save preset: tries to preserve as much as USSI can access from the client.
+-- Documentation: https://luau.github.io/UniversalSynSaveInstance/api/SynSaveInstance
+local Options = {
+	mode = "full",
+
+	-- Scripts
+	Decompile = true,
+	SaveBytecode = true,
+	SaveServerScripts = true, -- Best-effort; FilteringEnabled can still prevent access.
+	DecompileTimeout = 30,
+	DecompileIgnore = {},
+	IgnoreDefaultPlayerScripts = false,
+
+	-- Instance coverage
+	NilInstances = true,
+	IgnoreNotArchivable = true,
+	SaveNotCreatable = true,
+	SavePlayerCharacters = true,
+	IsolatePlayers = false,
+	IsolateLocalPlayer = false,
+	IsolateLocalPlayerCharacter = false,
+	IsolateStarterPlayer = false,
+	ExtraInstances = {},
+	IgnoreList = {},
+
+	-- Property coverage
+	IgnoreDefaultProperties = false,
+	IgnoreProperties = {},
+	IgnoreSpecialProperties = false,
+	SpecialProperties = false, -- false means save every readable special/hidden property.
+	IgnoreSharedStrings = false,
+	SharedStringOverwrite = false,
+	TreatUnionsAsParts = false,
+
+	-- Output/compatibility
+	FilePath = false,
+	AvoidFileOverwrite = true,
+	IsModel = false,
+	SafeMode = true,
+	KillAllScripts = true,
+	BoostFPS = true,
+	AntiIdle = true,
+	ShowStatus = true,
+	ReadMe = true,
+	Callback = false,
+	AlternativeWritefile = true,
+}
+
 synsaveinstance(Options)
 ```
 
