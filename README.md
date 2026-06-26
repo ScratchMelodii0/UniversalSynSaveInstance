@@ -93,6 +93,50 @@ The maintainers do not support or condone misuse of this software and are not re
 > You can also enable the `SafeMode` option to improve compatibility and ensure more reliable saving across a wide range of experiences.<br /><br /> You can read more about it here [Documentation]
 > If this script is helpful to you, please click `⭐ Star` in the upper right corner of the page to support it, thank you!
 
+# Troubleshooting
+
+## Native client crashes (SIGSEGV / SIGABRT)
+
+USSI is a **pure Lua/Luau script**. It ships no native code and cannot, by itself, cause a
+native crash of the Roblox client. If you are handed a native crash dump, check these fields
+**before** assuming the script is at fault:
+
+- **`Scripts Ran: false`** — no Lua script executed in that session, so the crash happened
+  *before* USSI ran and is unrelated to it.
+- **`Last Action: LOAD UI`** (or similar non-script action) — the client crashed during its own
+  startup/asset loading, not inside an executed script.
+
+### Android emulator + Houdini translation
+
+A common false report looks like this:
+
+```
+Platform: Android
+Arch: arm64
+Signal: 11 (SIGSEGV)
+Last Action: LOAD UI
+Scripts Ran: false
+Stacktrace:
+    #0  .../lib/arm64/libzstd-jni-...so
+    #1  /system/lib64/libhoudini.so
+    #2  .../lib/arm64/libroblox.so
+    ...
+```
+
+The presence of **`libhoudini.so`** means this is **not a real arm64 device** — it is an Android
+emulator (LDPlayer / BlueStacks / MEmu / Nox, etc.) running the x86 build and translating the
+arm64 libraries via Intel's Houdini layer. The segfault is inside Roblox's native zstd
+decompression (`libzstd-jni`) during UI/asset loading, which is a known source of instability
+under Houdini translation. **None of this is caused by USSI.**
+
+Practical fixes (all client/emulator-side):
+
+1. Run on a **real arm64 device** instead of an emulator.
+2. If an emulator is required, configure it to use a **native x86/x86_64 Roblox build** so Houdini
+   is not in the path, or update/reinstall the emulator's Android image.
+3. **Update the Roblox client** to the latest version and **clear its cache** — corrupt cached
+   zstd-compressed assets can trip the decompressor at load time.
+
 # Documentation
 
 [Documentation]
