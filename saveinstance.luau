@@ -2958,13 +2958,22 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			end
 
 			if not ToSaveInstance then
+				local tmp_dict = ArrayToDict(tmp)
 				local Children = TempRoot:GetChildren()
 				if 0 < #Children then
-					local tmp_dict = ArrayToDict(tmp)
 					for _, child in Children do
 						if not tmp_dict[child] then
+							tmp_dict[child] = true
 							table.insert(tmp, child)
 						end
+					end
+				end
+
+				for _, serviceName in { "ServerScriptService", "ServerStorage" } do
+					local _service = game:FindService(serviceName)
+					if _service and not tmp_dict[_service] then
+						tmp_dict[_service] = true
+						table.insert(tmp, _service)
 					end
 				end
 			end

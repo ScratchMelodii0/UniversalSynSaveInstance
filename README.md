@@ -35,7 +35,10 @@ local Options = {
 	IsolateLocalPlayer = false,
 	IsolateLocalPlayerCharacter = false,
 	IsolateStarterPlayer = false,
-	ExtraInstances = {},
+	ExtraInstances = {
+		game:GetService("ServerScriptService"), -- Server-side scripts; contents depend on what the client/executor can access.
+		game:GetService("ServerStorage"),
+	},
 	IgnoreList = {},
 
 	-- Property coverage
