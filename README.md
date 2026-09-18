@@ -22,6 +22,7 @@ local Options = {
 	Decompile = true,
 	SaveBytecode = true,
 	SaveServerScripts = true, -- Best-effort; FilteringEnabled can still prevent access.
+	ServerScriptToModuleScript = true, -- Converts server Scripts to ModuleScript for easier reconstruction.
 	DecompileTimeout = 30,
 	DecompileIgnore = {},
 	IgnoreDefaultPlayerScripts = false,
