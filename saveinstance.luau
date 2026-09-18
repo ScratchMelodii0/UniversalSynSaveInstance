@@ -2368,6 +2368,7 @@ local GLOBAL_ENV = getgenv and getgenv() or _G or shared
 --- @field DecompileJobless boolean -- Includes already decompiled code in the output. No new scripts are decompiled. ___Default:___ false
 --- @field SaveBytecode boolean -- Includes bytecode in the output. Useful if you wish to be able to decompile it yourself later. ___Default:___ false
 --- @field SaveServerScripts boolean -- Attempts to decompile/save server-side Script sources when the executor exposes them. FilteringEnabled usually prevents this, so unsupported scripts still receive a warning placeholder. ___Default:___ false
+--- @field ServerScriptToModuleScript boolean -- Converts server-side Script instances to ModuleScript in the saved output. Useful for reconstructing/rewriting server code since the decompiled source is wrapped as a callable module. Implicitly enables SaveServerScripts for converted scripts. ___Default:___ false
 --- .DecompileIgnore {Instance | Instance.ClassName | [Instance.ClassName] = {Instance.Name}} -- * Ignores match & it's descendants by default. To Ignore only the instance itself set the value to `= false`. Examples: "Chat", - Matches any instance with "Chat" ClassName, Players = {"MyPlayerName"} - Matches "Players" Class AND "MyPlayerName" Name ONLY, `workspace` - matches Instance by reference, `[workspace] = false` - matches Instance by reference and only ignores the instance itself and not it's descendants. ___Default:___ {TextChatService}
 --- .IgnoreList {Instance | Instance.ClassName | [Instance.ClassName] = {Instance.Name}} -- Structure is similar to **@DecompileIgnore** except `= false` meaning if you ignore one instance it will automatically ignore it's descendants. ___Default:___ {CoreGui, CorePackages}
 --- .ExtraInstances {Instance} -- If used with any invalid mode (like "invalidmode") it will only save these instances. ___Default:___ {}
@@ -2489,6 +2490,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		IgnoreDefaultPlayerScripts = true,
 		SaveBytecode = false,
 		SaveServerScripts = false,
+		ServerScriptToModuleScript = false,
 
 		IgnoreProperties = {},
 
@@ -2851,6 +2853,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 
 	local DecompileTimeout = OPTIONS.DecompileTimeout
 	local SaveServerScripts = OPTIONS.SaveServerScripts
+	local ServerScriptToModuleScript = OPTIONS.ServerScriptToModuleScript
 
 	local IgnoreSharedStrings = OPTIONS.IgnoreSharedStrings
 	local SharedStringOverwrite = OPTIONS.SharedStringOverwrite
@@ -3557,6 +3560,17 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 					end
 				end
 			end
+
+			local isServerScriptConverted = ServerScriptToModuleScript
+				and not ClassTagOverride
+				and instance:IsA("Script")
+				and not instance:IsA("LocalScript")
+				and instance.RunContext ~= Enum.RunContext.Client
+
+			if isServerScriptConverted then
+				ClassName = "ModuleScript"
+			end
+
 			-- ? The reason we only save .Name (and few other props in save_specific) is because
 			-- ? we can be sure this is a custom container (ex. NilInstancesFixes)
 			-- ? However, in case of NotCreatableFixes, the Instance might have Tags, Attributes etc. that can potentially be saved (even though it's a Folder)
@@ -3796,12 +3810,14 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 
 										if should_decompile then
 											local isLocalScript = instance:IsA("LocalScript")
+											local isBlockedServerScript = not isLocalScript
+												and instance:IsA("Script")
+												and instance.RunContext ~= Enum.RunContext.Client
 											if
 												not SaveServerScripts
+												and not isServerScriptConverted
 												and (isLocalScript and instance.RunContext == Enum.RunContext.Server
-													or not isLocalScript
-														and instance:IsA("Script")
-														and instance.RunContext ~= Enum.RunContext.Client)
+													or isBlockedServerScript)
 											then
 												value = "-- [FilteringEnabled] Server Scripts are disabled by default. Set SaveServerScripts = true to try saving them if your executor exposes them."
 											else
@@ -3813,6 +3829,12 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 													end
 												end
 											end
+										end
+
+										if isServerScriptConverted then
+											value = "-- Converted from Script (ServerScript) to ModuleScript by UniversalSynSaveInstance\n-- Original: " .. instance:GetFullName() .. "\n\nreturn (function()\n\n"
+												.. value
+												.. "\n\nend)()"
 										end
 
 										value = "-- Saved by UniversalSynSaveInstance (Join to Copy Games) https://discord.gg/wx4ThpAsmw\n\n"
